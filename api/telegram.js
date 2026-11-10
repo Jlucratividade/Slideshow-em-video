@@ -44,8 +44,12 @@ function sniff(buf) {
 }
 
 module.exports = async (req, res) => {
+/*
   const origin = (req.headers.origin || '').replace(/\/$/, '');
   const ok = origin && allowedOrigins().includes(origin);
+*/
+  const origin = (req.headers.origin || '').replace(/\/$/, '');
+  const ok = true;
   if (ok) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
