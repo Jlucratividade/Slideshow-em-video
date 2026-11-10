@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slideshow em vídeo</title>
+<style>
+:root{--bg:#101319;--panel:#171b22;--line:#262c36;--tx:#e9e7e2;--mut:#8b93a1;--ac:#ffb347;--err:#ff7a7a;--ok:#6fd39a;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 "Avenir Next","Segoe UI",system-ui,sans-serif}
+header{padding:28px clamp(16px,4vw,40px) 8px}
+h1{margin:0;font-size:clamp(26px,4vw,40px);letter-spacing:-.02em;font-weight:800}
+header p{margin:4px 0 0;color:var(--mut)}
+main{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:20px;padding:20px clamp(16px,4vw,40px) 48px;align-items:start}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+h2{margin:0 0 12px;font-size:16px;font-weight:700}
+textarea,select,input[type=text]{width:100%;background:#0d1015;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:inherit}
+textarea{min-height:84px;resize:vertical}
+label.f{display:block;font-size:13px;color:var(--mut)}
+label.f select{margin-top:4px;color:var(--tx)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+button,.btn{background:#222833;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;display:inline-flex;gap:8px;align-items:center;text-decoration:none}
+button:hover:not(:disabled),.btn:hover{border-color:var(--ac)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.pri{background:var(--ac);color:#1a1205;border-color:var(--ac)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+#list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px;max-height:300px;overflow:auto}
+#list li{display:flex;gap:8px;align-items:center;background:#0d1015;border:1px solid var(--line);border-radius:8px;padding:6px}
+#list img,#list .ph{width:44px;height:44px;border-radius:6px;object-fit:cover;background:#222833;flex:none}
+#list .u{flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#list .u small{display:block;color:var(--mut)}
+#list li.bad .u small{color:var(--err)}
+#list button{padding:4px 8px}
+.muted{color:var(--mut);font-size:13px;margin:8px 0 0}
+.chk{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:13px;color:var(--mut)}
+.stage{position:sticky;top:12px}
+@media(max-width:860px){.stage{position:static}}
+.frame{position:relative;background:#000;border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;place-items:center}
+canvas{display:block;max-width:100%;max-height:62vh;width:auto;height:auto;background:#05070a}
+#overlay{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.65);border-radius:12px}
+.bar{height:6px;background:var(--line);border-radius:3px;margin-top:12px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--ac)}
+#status{min-height:22px;margin:8px 0 0;font-size:13px;color:var(--mut)}
+#status.err{color:var(--err)}#status.ok{color:var(--ok)}
+#result video{width:100%;max-height:60vh;margin-top:14px;border-radius:12px;background:#000}
+</style>
+</head>
+<body>
+<header>
+  <h1>Slideshow em vídeo</h1>
+  <p>Cole URLs de imagens, escolha o movimento e baixe ou envie ao Telegram.</p>
+</header>
+<main>
+<section>
+  <div class="card">
+    <h2>Imagens</h2>
+    <textarea id="urls" placeholder="Uma URL por linha (https://...)" aria-label="URLs das imagens"></textarea>
+    <div class="row">
+      <button id="addBtn" class="pri">＋ Adicionar URLs</button>
+      <label class="btn">🖼 Enviar arquivos<input type="file" id="files" accept="image/*" multiple hidden></label>
+      <button id="clearBtn">✕ Limpar</button>
+    </div>
+    <ul id="list"></ul>
+    <p class="muted" id="count"></p>
+  </div>
+  <div class="card">
+    <h2>Vídeo</h2>
+    <div class="grid">
+      <label class="f">Formato<select id="format"><option value="vertical">Vertical 9:16 (1080×1920)</option><option value="horizontal">Horizontal 16:9 (1920×1080)</option><option value="square">Quadrado 1:1 (1080×1080)</option></select></label>
+      <label class="f">Duração por imagem<select id="duration"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>8</option><option>10</option></select></label>
+      <label class="f">Efeito<select id="effect"><option value="zoomin">Zoom in</option><option value="zoomout">Zoom out</option><option value="left">Movimento para esquerda</option><option value="right">Movimento para direita</option><option value="vertical">Movimento vertical</option><option value="kenburns">Ken Burns</option><option value="static">Imagem estática</option></select></label>
+      <label class="f">Transição<select id="transition"><option value="crossfade">Crossfade</option><option value="fade">Fade (via preto)</option><option value="dissolve">Dissolve</option><option value="cut">Corte direto</option></select></label>
+      <label class="f">FPS<select id="fps"><option>24</option><option selected>30</option><option>60</option></select></label>
+      <label class="f">Qualidade<select id="quality"><option value="low">Baixa</option><option value="mid" selected>Média</option><option value="high">Alta</option></select></label>
+    </div>
+    <label class="chk"><input type="checkbox" id="opt" checked> Limitar o tamanho para caber no envio ao Telegram (≈4 MB)</label>
+    <p class="muted" id="codec"></p>
+  </div>
+  <div class="card">
+    <h2>Telegram</h2>
+    <input type="text" id="caption" maxlength="200" placeholder="Legenda (opcional)" aria-label="Legenda">
+  </div>
+</section>
+
+<section class="stage">
+  <div class="frame">
+    <canvas id="cv" aria-label="Pré-visualização"></canvas>
+    <div id="overlay"><button id="startBtn" class="pri">▶ Toque para iniciar</button></div>
+  </div>
+  <div class="bar"><i id="bar"></i></div>
+  <p id="status" role="status"></p>
+  <div class="row">
+    <button id="prevBtn">▶ Pré-visualizar</button>
+    <button id="genBtn" class="pri">● Gerar vídeo</button>
+    <button id="cancelBtn" disabled>■ Cancelar</button>
+  </div>
+  <div class="card" id="result" hidden style="margin-top:16px">
+    <h2>Vídeo pronto</h2>
+    <p class="muted" id="info"></p>
+    <video id="vid" controls playsinline></video>
+    <div class="row">
+      <a id="dl" class="btn pri">⬇ Baixar</a>
+      <button id="tgBtn">✈ Enviar ao Telegram</button>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+(()=>{
+'use strict';
+/* ====== CONFIGURAÇÃO ======
+   Coloque aqui a URL pública do backend na Vercel (sem barra no final).
+   Ex.: 'https://slideshow-generator.vercel.app'. NUNCA coloque token aqui. */
+const BACKEND_URL = '';
+const LIMITS = {maxImages:30, maxBytes:15*1024*1024, telegramBytes:4*1024*1024};
+const FORMATS = {vertical:[1080,1920], horizontal:[1920,1080], square:[1080,1080]};
+const CANDS = [['video/mp4;codecs=avc1.42E01E','mp4'],['video/mp4;codecs=avc1','mp4'],['video/mp4','mp4'],
+  ['video/webm;codecs=vp9','webm'],['video/webm;codecs=vp8','webm'],['video/webm','webm']];
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const S = {items:[], busy:false, cancel:false, blob:null, ext:'', url:null, auto:{dl:false,tg:false}};
+let uid = 0;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- utilidades de UI ---------- */
+function msg(t, cls){ const s=$('status'); s.textContent=t; s.className=cls||''; }
+function prog(p){ $('bar').style.width = Math.round(p*100)+'%'; }
+function cfg(){ const f=FORMATS[$('format').value];
+  return {W:f[0],H:f[1],D:+$('duration').value*1000,fps:+$('fps').value,effect:$('effect').value,tr:$('transition').value,q:$('quality').value}; }
+const ready = () => S.items.filter(i => i.bmp);
+function setBusy(b){ S.busy=b;
+  ['genBtn','prevBtn','addBtn','clearBtn','tgBtn'].forEach(id => $(id).disabled=b);
+  document.querySelectorAll('select,#files,#urls').forEach(e => e.disabled=b);
+  $('cancelBtn').disabled=!b; }
+
+/* ---------- validação e carregamento de imagens ---------- */
+function validUrl(u){
+  let x; try{ x=new URL(u); }catch{ return 'URL inválida'; }
+  if(!/^https?:$/.test(x.protocol)) return 'Use apenas http ou https';
+  const h=x.hostname.toLowerCase();
+  if(h==='localhost'||h.endsWith('.local')||h.endsWith('.internal')||h==='[::1]'||
+     /^(127|10|0)\./.test(h)||/^192\.168\./.test(h)||/^169\.254\./.test(h)||/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return 'Endereço local não permitido';
+  return '';
+}
+function addUrls(list){
+  for(const raw of list){
+    const u=raw.trim(); if(!u) continue;
+    if(S.items.length>=LIMITS.maxImages){ msg('Limite de '+LIMITS.maxImages+' imagens atingido.','err'); break; }
+    const it={id:++uid,url:u,name:u,status:'carregando…',bad:false};
+    const e=validUrl(u); S.items.push(it);
+    if(e){ it.status=e; it.bad=true; } else load(it,()=>fetch(u,{mode:'cors',referrerPolicy:'no-referrer',credentials:'omit'}).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); }));
+  }
+  renderList();
+}
+function addFiles(files){
+  for(const f of files){
+    if(S.items.length>=LIMITS.maxImages) break;
+    const it={id:++uid,url:'',name:f.name,status:'carregando…',bad:false}; S.items.push(it);
+    load(it,()=>Promise.resolve(f));
+  }
+  renderList();
+}
+async function load(it,getBlob){
+  try{
+    const b=await getBlob();
+    if(b.size>LIMITS.maxBytes) throw new Error('Maior que '+(LIMITS.maxBytes>>20)+' MB');
+    if(!/^image\//.test(b.type)) throw new Error('Não é uma imagem');
+    it.bmp=await createImageBitmap(b);
+    const c=document.createElement('canvas'); c.width=c.height=96;
+    const k=Math.max(96/it.bmp.width,96/it.bmp.height), w=it.bmp.width*k, h=it.bmp.height*k;
+    c.getContext('2d').drawImage(it.bmp,(96-w)/2,(96-h)/2,w,h);
+    it.thumb=c.toDataURL('image/jpeg',.6);
+    it.status=it.bmp.width+'×'+it.bmp.height+' · '+Math.round(b.size/1024)+' KB';
+  }catch(e){
+    it.bad=true;
+    it.status=e instanceof TypeError ? 'Não foi possível ler (o servidor da imagem precisa liberar CORS)' : e.message;
+  }
+  renderList(); if(!S.busy) idle();
+}
+function renderList(){
+  const ul=$('list'); ul.replaceChildren();
+  S.items.forEach((it,i)=>{
+    const li=document.createElement('li'); if(it.bad) li.className='bad';
+    let th; if(it.thumb){ th=new Image(); th.src=it.thumb; th.alt=''; } else { th=document.createElement('div'); th.className='ph'; }
+    const u=document.createElement('div'); u.className='u'; u.textContent=it.name;
+    const sm=document.createElement('small'); sm.textContent=it.status; u.append(sm);
+    li.append(th,u);
+    [['↑',-1],['↓',1],['✕',0]].forEach(([t,d])=>{
+      const b=document.createElement('button'); b.textContent=t; b.setAttribute('aria-label',d?(d<0?'Subir':'Descer'):'Remover');
+      b.onclick=()=>{ if(!d){ it.bmp&&it.bmp.close(); S.items.splice(i,1); } else { const j=i+d; if(j<0||j>=S.items.length) return; [S.items[i],S.items[j]]=[S.items[j],S.items[i]]; } renderList(); idle(); };
+      li.append(b);
+    });
+    ul.append(li);
+  });
+  const n=ready().length;
+  $('count').textContent=S.items.length?n+' de '+S.items.length+' imagens prontas · máx. '+LIMITS.maxImages:'Nenhuma imagem adicionada.';
+}
+
+/* ---------- motor de renderização ---------- */
+function drawCover(bmp,W,H,zoom,px,py){
+  const k=Math.max(W/bmp.width,H/bmp.height)*zoom, w=bmp.width*k, h=bmp.height*k;
+  ctx.drawImage(bmp,(W-w)/2+px*(w-W)/2,(H-h)/2+py*(h-H)/2,w,h);
+}
+function motion(e,p,i){
+  switch(e){
+    case 'zoomin': return [1+.2*p,0,0];
+    case 'zoomout': return [1.2-.2*p,0,0];
+    case 'left': return [1.2,1-2*p,0];
+    case 'right': return [1.2,-1+2*p,0];
+    case 'vertical': return [1.2,0,1-2*p];
+    case 'kenburns': { const d=i%2?-1:1; return [1.05+.22*(d>0?p:1-p), d*(.7-1.4*p), d*(.4-.8*p)*-1]; }
+    default: return [1,0,0];
+  }
+}
+function frame(list,c,t){
+  const n=list.length, {W,H,D}=c, T=c.tr==='cut'?0:Math.min(1000,D/3);
+  const i=Math.min(n-1,Math.floor(t/D)), local=t-i*D;
+  const layer=(k,p,a)=>{ const m=motion(c.effect,p,k); ctx.globalAlpha=a; drawCover(list[k].bmp,W,H,m[0],m[1],m[2]); };
+  ctx.globalAlpha=1; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  const a=(i<n-1&&T>0&&local>D-T)?(local-(D-T))/T:-1;
+  if(a<0){ layer(i,Math.min(1,local/D),1); }
+  else if(c.tr==='fade'){ if(a<.5) layer(i,local/D,1-2*a); else layer(i+1,0,2*a-1); }
+  else {
+    layer(i,local/D,1);
+    const s=c.tr==='dissolve'?a*a*(3-2*a):a;
+    if(c.tr==='dissolve'&&'filter' in ctx) ctx.filter='blur('+(Math.sin(a*Math.PI)*10)+'px)';
+    layer(i+1,0,s); ctx.filter='none';
+  }
+  ctx.globalAlpha=1;
+}
+function idle(){
+  const c=cfg(); if(cv.width!==c.W||cv.height!==c.H){ cv.width=c.W; cv.height=c.H; }
+  const l=ready();
+  if(l.length) frame(l,c,0); else { ctx.fillStyle='#05070a'; ctx.fillRect(0,0,c.W,c.H); ctx.fillStyle='#8b93a1'; ctx.font='bold '+(c.W/22)+'px system-ui'; ctx.textAlign='center'; ctx.fillText('Adicione imagens para começar',c.W/2,c.H/2); }
+}
+function timeline(list,c){
+  return new Promise(res=>{
+    const total=list.length*c.D, t0=performance.now();
+    const tick=now=>{
+      if(S.cancel) return res(false);
+      const t=Math.max(0,now-t0);
+      if(t>=total){ frame(list,c,total-1); prog(1); return res(true); }
+      frame(list,c,t); prog(t/total); requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+/* ---------- gravação ---------- */
+async function record(list,c,mime,bps){
+  const stream=cv.captureStream(c.fps);
+  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:bps});
+  const chunks=[]; rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  const stopped=new Promise((r,j)=>{ rec.onstop=r; rec.onerror=e=>j(e.error||new Error('Falha na gravação')); });
+  frame(list,c,0); rec.start(500);
+  const ok=await timeline(list,c);
+  if(ok) await sleep(250);
+  if(rec.state!=='inactive') rec.stop();
+  await stopped; stream.getTracks().forEach(t=>t.stop());
+  if(!ok) throw new Error('cancelado');
+  return new Blob(chunks,{type:mime.split(';')[0]});
+}
+async function generate(){
+  if(S.busy) return;
+  const list=ready(); if(!list.length) return msg('Adicione ao menos uma imagem válida.','err');
+  if(typeof MediaRecorder==='undefined'||!cv.captureStream) return msg('Este navegador não suporta gravação de vídeo a partir do canvas.','err');
+  const pick=CANDS.find(([m])=>MediaRecorder.isTypeSupported(m)); if(!pick) return msg('Nenhum formato de vídeo suportado.','err');
+  const c=cfg(), total=list.length*c.D/1000;
+  let bps=c.W*c.H*c.fps*{low:.05,mid:.1,high:.18}[c.q];
+  if($('opt').checked) bps=Math.min(bps,LIMITS.telegramBytes*8*.8/total);
+  bps=Math.max(300000,bps|0);
+  S.cancel=false; setBusy(true); clearResult(); $('overlay').style.display='none';
+  cv.width=c.W; cv.height=c.H;
+  msg('Gravando em tempo real ('+total+' s). Mantenha esta aba visível.');
+  try{
+    const blob=await record(list,c,pick[0],bps);
+    S.blob=blob; S.ext=pick[1]; showResult();
+    msg('Vídeo gerado.','ok');
+    if(S.auto.dl) $('dl').click();
+    if(S.auto.tg){ setBusy(false); await sendTelegram(); }
+  }catch(e){ msg(e.message==='cancelado'?'Geração cancelada.':'Erro: '+e.message, e.message==='cancelado'?'':'err'); prog(0); }
+  finally{ setBusy(false); idle(); }
+}
+async function preview(){
+  if(S.busy) return; const list=ready(); if(!list.length) return msg('Adicione ao menos uma imagem válida.','err');
+  S.cancel=false; setBusy(true); msg('Pré-visualizando…');
+  const c=cfg(); cv.width=c.W; cv.height=c.H;
+  const ok=await timeline(list,c); setBusy(false); prog(0); msg(ok?'':'Pré-visualização interrompida.'); idle();
+}
+
+/* ---------- resultado, download, Telegram ---------- */
+function clearResult(){ if(S.url) URL.revokeObjectURL(S.url); S.url=null; S.blob=null; $('vid').removeAttribute('src'); $('result').hidden=true; }
+function showResult(){
+  S.url=URL.createObjectURL(S.blob); $('vid').src=S.url;
+  const d=new Date(), p=n=>String(n).padStart(2,'0');
+  S.name='slideshow-'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+'.'+S.ext;
+  $('dl').href=S.url; $('dl').download=S.name;
+  $('info').textContent=S.name+' · '+(S.blob.size/1048576).toFixed(2)+' MB · '+S.blob.type;
+  $('result').hidden=false;
+}
+async function sendTelegram(){
+  if(!S.blob) return msg('Gere o vídeo primeiro.','err');
+  if(!BACKEND_URL) return msg('Configure BACKEND_URL no index.html (veja o README).','err');
+  if(S.blob.size>LIMITS.telegramBytes+512*1024) return msg('Vídeo de '+(S.blob.size/1048576).toFixed(1)+' MB excede o limite de ~4,5 MB da Vercel. Ative "Limitar o tamanho" ou reduza duração/qualidade.','err');
+  setBusy(true); msg('Enviando ao Telegram…');
+  try{
+    const c=cfg(), fd=new FormData();
+    fd.append('video',S.blob,S.name); fd.append('width',c.W); fd.append('height',c.H);
+    fd.append('duration',Math.round(ready().length*c.D/1000)); fd.append('caption',$('caption').value.slice(0,200));
+    const r=await fetch(BACKEND_URL.replace(/\/$/,'')+'/api/telegram',{method:'POST',body:fd});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok) throw new Error(j.error||'HTTP '+r.status);
+    msg('Enviado ao Telegram (mensagem '+j.message_id+(j.sent_as==='document'?', como arquivo — WebM':'')+').','ok');
+  }catch(e){ msg('Falha no envio: '+e.message,'err'); }
+  finally{ setBusy(false); }
+}
+
+/* ---------- parâmetros da URL ---------- */
+function applyParams(){
+  const q=new URLSearchParams(location.search), urls=[];
+  const split=v=>{ try{ if(/^https?%3A/i.test(v)) v=decodeURIComponent(v); }catch{} return v.split(/[\n,\s]+/).filter(Boolean); };
+  ['images','image','img'].forEach(k=>q.getAll(k).forEach(v=>urls.push(...split(v))));
+  for(let i=1;i<=LIMITS.maxImages;i++) q.getAll('img'+i).forEach(v=>urls.push(...split(v)));
+  const norm=v=>(v||'').toLowerCase().replace(/[-_\s]/g,'');
+  const setSel=(id,v,alias={})=>{ v=norm(v); v=alias[v]||v; const s=$(id); if([...s.options].some(o=>(o.value||o.text)===v)) s.value=v; };
+  const near=(id,v)=>{ const n=+v; if(!n) return; const s=$(id), o=[...s.options].map(x=>+x.value||+x.text);
+    s.value=String(o.reduce((a,b)=>Math.abs(b-n)<Math.abs(a-n)?b:a)); };
+  if(q.has('format')) setSel('format',q.get('format'),{'9:16':'vertical','16:9':'horizontal','1:1':'square',quadrado:'square'});
+  if(q.has('effect')) setSel('effect',q.get('effect'),{zoom:'zoomin',esquerda:'left',direita:'right',estatico:'static'});
+  if(q.has('transition')) setSel('transition',q.get('transition'),{corte:'cut',cross:'crossfade'});
+  if(q.has('quality')) setSel('quality',q.get('quality'),{baixa:'low',media:'mid',alta:'high'});
+  if(q.has('duration')) near('duration',q.get('duration'));
+  if(q.has('fps')) near('fps',q.get('fps'));
+  const on=k=>['1','true','yes','sim'].includes((q.get(k)||'').toLowerCase());
+  S.auto={dl:on('autodownload'),tg:on('sendtelegram')};
+  return {urls, autoplay:on('autoplay')};
+}
+
+/* ---------- inicialização ---------- */
+$('addBtn').onclick=()=>{ addUrls($('urls').value.split(/\n+/)); $('urls').value=''; };
+$('files').onchange=e=>{ addFiles([...e.target.files]); e.target.value=''; };
+$('clearBtn').onclick=()=>{ S.items.forEach(i=>i.bmp&&i.bmp.close()); S.items=[]; clearResult(); renderList(); idle(); prog(0); msg(''); };
+$('genBtn').onclick=generate; $('prevBtn').onclick=preview; $('tgBtn').onclick=sendTelegram;
+$('cancelBtn').onclick=()=>{ S.cancel=true; };
+['format'].forEach(id=>$(id).onchange=idle);
+$('startBtn').onclick=generate;
+const codec=typeof MediaRecorder!=='undefined'&&CANDS.find(([m])=>MediaRecorder.isTypeSupported(m));
+$('codec').textContent=codec?'Este navegador gravará em '+codec[1].toUpperCase()+(codec[1]==='webm'?' (MP4 não é suportado aqui; o arquivo será salvo como .webm).':'.'):'Gravação de vídeo indisponível neste navegador.';
+renderList(); idle();
+const P=applyParams(); idle();
+if(P.urls.length){
+  addUrls(P.urls);
+  if(P.autoplay){
+    const wait=()=>S.items.some(i=>i.status==='carregando…')?sleep(150).then(wait):0;
+    wait().then(()=>{
+      const safari=/^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      if(safari){ $('overlay').style.display='grid'; msg('Este navegador exige um toque para iniciar.'); }
+      else generate();
+    });
+  }
+}
+})();
+</script>
+</body>
+</html>

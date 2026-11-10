@@ -1,0 +1,8 @@
+{
+  "name": "slideshow-generator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend (Vercel Function) para enviar vídeos do gerador de slideshow ao Telegram",
+  "engines": { "node": ">=18" },
+  "dependencies": { "busboy": "^1.6.0" }
+}
